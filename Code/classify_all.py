@@ -3,7 +3,7 @@
    only.
 """
 
-# from PIL import Image
+from PIL import Image
 from tensorflow.keras import layers
 import matplotlib.pyplot as plt
 import random
@@ -13,30 +13,49 @@ import tensorflow as tf
 
 tf.compat.v1.enable_eager_execution  # lets tensorflow behave like python
 
-'preprocess images for training'
+'Preprocess images for training'
 '------------------------------'
-'collect image paths'
+'Collect image paths'
 # Define the base directory of all the images and convert it into a
 # pathlib.WindowsPath object. Then collect all the image paths into a
-# list of of WindowsPath objects, convert to strings and shuffle.
+# list of of WindowsPath objects and convert these to strings.
 basedir = 'C:/Users/JayPee/OneDrive - Imperial College London/UROP/Needle \
 OCT_Ian'
 basepath = Path(basedir)
 all_image_paths = list(basepath.glob('*/*/*.bmp'))
 all_image_paths = [str(path) for path in all_image_paths]
-random.shuffle(all_image_paths)
 
-'list label indices for each image path'
+'List label indices for each image path'
+# Make a list of all the classes by reading the subfolder names, make a
+# dictionary for {label: index}, then make a list of labels (all_image_indices)
+# corresponding to all_image_paths.
 label_names = sorted(
     item.name for item in basepath.glob('*/') if item.is_dir())
-# lists all the subfolder names
 label_to_index = dict((key, value) for value, key in enumerate(label_names))
-# creates dictionary {label: index}
-all_image_labels = [
+all_image_indices = [
     label_to_index[Path(path).parent.parent.name] for path in all_image_paths]
-# creates a list with all the corresponding label indices of each item in
-# all_image_paths
-IMAGE_COUNT = len(all_image_labels)
+IMAGE_COUNT = len(all_image_indices)
+
+'Process images and extract 1D slices'
+# Extract many 1D slices from each image in all_image_paths and maintain the
+# correspondence with all_image_indices
+
+for image_path in all_image_paths:
+    # Extract image as np array (use pillow)
+    # Take many slices of the image
+    # save these slices as the colummns of a 2D np array, all_slices
+    # make a corresponding list of all_slice_indices
+    image = Image.open(image_path) #?
+    pass
+
+
+
+
+
+
+
+
+
 
 
 'Make image into tensor and resize/normalise'
@@ -50,7 +69,7 @@ def preprocess_image(image_file):
     # ??i think this line is loosing a lot of information??
     # image_tensor = tf.image.resize(image_tensor, img_shape)
     image_tensor = tf.dtypes.cast(image_tensor, dtype=tf.float32)
-    # image_tensor = image_tensor/255.0
+    image_tensor = image_tensor/255.0
     return image_tensor
 
 
@@ -77,7 +96,7 @@ def view_preprocessed_image():
     image_num = np.random.randint(0, IMAGE_COUNT)
     print('Displaying image ' + str(image_num) + ' ...')
     image_path = all_image_paths[image_num]
-    image_label = all_image_labels[image_num]
+    image_label = all_image_indices[image_num]
     image_tensor = load_preprocess_image(image_path)
     # Convert tensor to array array using Sessions
     image_array = tf.compat.v1.Session().run(image_tensor)
@@ -108,7 +127,7 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 image_ds = path_ds.map(load_preprocess_image, num_parallel_calls=AUTOTUNE)
 # Create a dataset of the labels.
 label_ds = tf.data.Dataset.from_tensor_slices(
-    tf.cast(all_image_labels, tf.int64)
+    tf.cast(all_image_indices, tf.int64)
     )
 # Zip the two datasets together to form a dataset of (image, label) pairs.
 image_label_ds = tf.data.Dataset.zip((image_ds, label_ds))
