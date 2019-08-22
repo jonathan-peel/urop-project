@@ -53,8 +53,8 @@ def displayimg(image_num): # possibly change this function slightly later to mak
     plt.show()
 
 'give the user the option of viewing one of the images after preprocessing'
-def viewimgfctn():
-    viewimg = input('Finished processing images: View an image now? (enter [y]/[n]): ')
+def viewimgfctn(action):
+    viewimg = input('Finished ' + action + ' images: View an image now? (enter [y]/[n]): ')
     while viewimg != ('y' or 'n'):  # validate entry
         viewimg = input('Invalid entry, please try again: ')
     return viewimg
@@ -66,7 +66,7 @@ def view_preprocessed_image(viewimg):
         displayimg(image_num)
         viewimg = input('Would you like to view another image? (enter: [y]/[n]): ')
 
-viewimg = viewimgfctn() # get input from user
+viewimg = viewimgfctn('processing') # get input from user
 view_preprocessed_image(viewimg)
 
 path_ds = tf.data.Dataset.from_tensor_slices(all_image_paths)
