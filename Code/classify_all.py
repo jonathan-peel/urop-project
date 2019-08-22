@@ -50,13 +50,13 @@ def preprocess_image(image_file):
     # ??i think this line is loosing a lot of information??
     # image_tensor = tf.image.resize(image_tensor, img_shape)
     image_tensor = tf.dtypes.cast(image_tensor, dtype=tf.float32)
-    image_tensor = image_tensor/255.0
+    # image_tensor = image_tensor/255.0
     return image_tensor
 
 
-def load_preprocess_image(image_dir):
+def load_preprocess_image(image_path):
     # Wrapper to load the image and call preprocess_image()
-    image_file = tf.io.read_file(image_dir)
+    image_file = tf.io.read_file(image_path)
     return preprocess_image(image_file)
 
 
@@ -76,17 +76,18 @@ def view_preprocessed_image():
     """View a post-preprocessing image."""
     image_num = np.random.randint(0, IMAGE_COUNT)
     print('Displaying image ' + str(image_num) + ' ...')
-    image_dir = all_image_paths[image_num]
+    image_path = all_image_paths[image_num]
     image_label = all_image_labels[image_num]
-    image_tensor = load_preprocess_image(image_dir)
+    image_tensor = load_preprocess_image(image_path)
     # Convert tensor to array array using Sessions
     image_array = tf.compat.v1.Session().run(image_tensor)
     # image_array = image_array.reshape(img_shape) # necessary?
     image_array = np.squeeze(image_array)  # Remove dimensions of size 1
     plt.imshow(image_array)
-    plt.xlabel('Image number {}: {}'.format(image_num,
-               label_names[image_label])
-               )
+    plt.title('Image number {}: {}'.format(image_num,
+              label_names[image_label])
+              )
+    plt.xlabel('Image path: ' + str(image_path))
     plt.show()
 
 
@@ -121,8 +122,10 @@ ds = ds.repeat()
 ds = ds.batch(BATCH_SIZE)
 ds = ds.prefetch(buffer_size=AUTOTUNE)
 
-# Give the user the option of veiwing one of the images from the datasets
+# Split the dataset into training and validation
 
+# Give the user the option of veiwing one of the images from the datasets
+viewimg = viewimg_get_input(completed_action='building dataset')
 
 'Build model'
 '-----------'
