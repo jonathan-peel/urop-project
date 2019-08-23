@@ -3,6 +3,7 @@
    only.
 """
 
+from matplotlib.image import imread
 from PIL import Image
 from tensorflow.keras import layers
 import matplotlib.pyplot as plt
@@ -11,26 +12,51 @@ from pathlib import Path
 import numpy as np
 import tensorflow as tf
 
+
 tf.compat.v1.enable_eager_execution  # lets tensorflow behave like python
 
-'Preprocess images for training'
+'Preprocess slices for training'
 '------------------------------'
-'Collect image paths'
+'Collect WM slices'
 # Define the base directory of all the images and convert it into a
-# pathlib.WindowsPath object. Then collect all the image paths into a
+# pathlib.WindowsPath object. Then collect all the WM image paths into a
 # list of of WindowsPath objects and convert these to strings.
 basedir = 'C:/Users/JayPee/OneDrive - Imperial College London/UROP/Needle \
-OCT_Ian'
+OCT_Ian/'
 basepath = Path(basedir)
-all_image_paths = list(basepath.glob('*/*/*.bmp'))
+WM_paths = list(basepath.glob('WM only/**/*.bmp'))
+GM_paths = list(basepath.glob('GM only/**/*.bmp'))
+WM_paths = [str(path) for path in WM_paths]
+GM_paths = [str(path) for path in GM_paths]
+
+# Load the images into arrays and extract slices from each image, building up
+# a big 2D array (a list of slices).
+all_slices_list = []
+i = 0
+for image_path in WM_paths:
+    image = Image.open(image_path)
+    image_cropped = image.crop((60, 44, 827, 454))
+    image_array[i] = np.asarray(image_cropped)
+    image_array[i] = image_array[i].transpose()
+    print('Completed image ' + str(i) + ' of ' + str(len(WM_paths)))
+
+
+
+
+
+
+
+
+# inactive code below
+
+all_image_paths = list(basepath.glob('[WM only,GM only]/*/*.bmp'))
 all_image_paths = [str(path) for path in all_image_paths]
 
 'List label indices for each image path'
-# Make a list of all the classes by reading the subfolder names, make a
+# Make a list of all the classes WM and GM, make a
 # dictionary for {label: index}, then make a list of labels (all_image_indices)
 # corresponding to all_image_paths.
-label_names = sorted(
-    item.name for item in basepath.glob('*/') if item.is_dir())
+label_names = ['WM only', 'GM only']
 label_to_index = dict((key, value) for value, key in enumerate(label_names))
 all_image_indices = [
     label_to_index[Path(path).parent.parent.name] for path in all_image_paths]

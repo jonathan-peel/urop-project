@@ -11,10 +11,14 @@
 # foo(var_1)
 
 """Test complex control statements."""
-cont = input('Continue? (y or n): ')
+# cont = input('Continue? (y or n): ')
 
-while cont == 'y' or cont == 'n':
-    print('correct entry')
-    cont = input('Continue? (y or n): ')
+# while cont == 'y' or cont == 'n':
+#     print('correct entry')
+#     cont = input('Continue? (y or n): ')
 # This works. I think each expression separated by an 'or' needs to be 
 # individually evaluateable.
+
+import numpy as np
+
+array = np.empty
