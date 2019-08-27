@@ -19,6 +19,10 @@
 # This works. I think each expression separated by an 'or' needs to be 
 # individually evaluateable.
 
-import numpy as np
+WM_NUMBER = 2
+WM_PATHS = ['str1', 'str2', 'str3']
+is_tuple = (WM_PATHS, WM_NUMBER)
 
-array = np.empty
+for image_path, i in (WM_PATHS, range(WM_NUMBER)):
+    print(image_path, i)
+
