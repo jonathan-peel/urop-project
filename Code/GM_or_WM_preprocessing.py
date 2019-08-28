@@ -86,11 +86,12 @@ ds = tf.data.Dataset.zip((slice_dataset, label_dataset))
 # Shuffle, repeat and batch dataset. Also enable prefetch to accelerate
 # training. Then separate dataset into training and validation (and extra
 # verification?)
-BATCH_SIZE = 32  # no reason to choose this number
+BATCH_SIZE = 32  # no reason to choose this number?
 ds = ds.shuffle(buffer_size=TOTAL_NUMBER)
 ds = ds.repeat()
 ds = ds.batch(BATCH_SIZE)
 ds = ds.prefetch(buffer_size=AUTOTUNE)
+
 
 
 def display_slices(num_slices):
