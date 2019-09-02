@@ -62,7 +62,7 @@ def make_label_list():
     return label_list
 
 
-def normalise(dataset_element):
+def normalize(dataset_element):
     """Function to be mapped onto slices dataset."""
     dataset_element = tf.cast(dataset_element, tf.float32)
     return dataset_element / 255
@@ -71,29 +71,44 @@ def normalise(dataset_element):
 'Make datasets'
 # Make a list of 1D slices (as an nd array) then a list of corresponding
 # labels. Convert these lists into datasets and zip then shuffle them ready
-# for training. Note: slices have to be normalised after dataset is created
+# for training. Note: slices have to be normalized after dataset is created
 # to avoid initialising array over 2GB error.
 AUTOTUNE = tf.data.experimental.AUTOTUNE  # Optimum number of parallel calls
 all_slices = make_slice_array()
 label_list = make_label_list()
 slice_dataset = tf.data.Dataset.from_tensor_slices(all_slices)
-slice_dataset = slice_dataset.map(normalise, num_parallel_calls=AUTOTUNE)
+slice_dataset = slice_dataset.map(normalize, num_parallel_calls=AUTOTUNE)
 label_dataset = tf.data.Dataset.from_tensor_slices(label_list)
 ds = tf.data.Dataset.zip((slice_dataset, label_dataset))
 ds = ds.shuffle(buffer_size=TOTAL_NUMBER)
 
-# Separate dataset into training, validation and testing.
-TRAIN_NUMBER = int(round(0.7 * TOTAL_NUMBER))
-VAL_NUMBER = int(round(0.2 * TOTAL_NUMBER))
-TEST_NUMBER = int(round(0.1 * TOTAL_NUMBER))
-assert TRAIN_NUMBER + VAL_NUMBER + TEST_NUMBER == TOTAL_NUMBER,\
-    'Rounding error when splitting dataset.'
+# Separate dataset into training, validation and testing. (DO LATER)
+# TRAIN_NUMBER = int(round(0.7 * TOTAL_NUMBER))
+# VAL_NUMBER = int(round(0.2 * TOTAL_NUMBER))
+# TEST_NUMBER = int(round(0.1 * TOTAL_NUMBER))
+# assert TRAIN_NUMBER + VAL_NUMBER + TEST_NUMBER == TOTAL_NUMBER,\
+#        'Rounding error when splitting dataset.'
 
-ds_train = ds.take(TRAIN_NUMBER)
-ds_temp = ds.skip(TRAIN_NUMBER)
-ds_test = ds_temp.skip(VAL_NUMBER)
-ds_val = ds_temp.take(VAL_NUMBER)
-del ds_temp
+# ds_train = ds.take(TRAIN_NUMBER)
+# ds_temp = ds.skip(TRAIN_NUMBER)
+# ds_test = ds_temp.skip(VAL_NUMBER)
+# ds_val = ds_temp.take(VAL_NUMBER)
+# del ds_temp
+
+
+'Prepare datasets for training'  # maybe do this step after caching datasets
+# Repeat and batch dataset with prefetch. Note this is done after the
+# creation of daughter datasets and inspection since making the dataset
+# infinite (repeating) and separating into batches changes the nature of each
+# element. The '?'s in shapes indicate that the batch dimension is not
+# constant.
+# BATCH_SIZE = 32  # no reason to choose this number?
+# ds_train = ds_train.shuffle(TRAIN_NUMBER).batch(BATCH_SIZE)\
+#            .prefetch(AUTOTUNE)  # ?What is AUTOTUNE?, ?Should I repeat?
+# ds_val = ds_val.batch(BATCH_SIZE).prefetch(AUTOTUNE)
+# ds = ds.repeat()
+# ds = ds.batch(BATCH_SIZE)  # Changes shapes to ((?, 410), (?, ))
+# ds = ds.prefetch(buffer_size=AUTOTUNE)
 
 
 def display_slices(num_slices):
@@ -108,13 +123,19 @@ def display_slices(num_slices):
     for counter, (slice, label_index) in \
             enumerate(ds.skip(skip_num).take(num_slices)):
         slice_label = str(counter+1) + ': ' + label_names[label_index]
-        plt.plot(np.linspace(0, 600, len(list(slice))), slice,
-                 label=slice_label
-                 )  # ?Are all the images 600?
+
+        if label_index.numpy() == 0:  # 0 = WM
+            color = 'b'
+        elif label_index.numpy() == 1:
+            color = 'g'
+
+        line = plt.plot(np.linspace(0, 600, len(list(slice))), slice,
+                        label=slice_label, color=color
+                        )  # ?Are all the images 600?
 
     plt.xlabel('Frequency (Hz)')  # ?Is it Hz?
     plt.ylabel('Intensity')
-    plt.title('Sample of ' + str(num_slices) + ' slices from dataset')
+    plt.title('Sample of ' + str(num_slices) + ' slice(s) from dataset')
     plt.legend()
 
     plt.show()
@@ -140,28 +161,65 @@ while not num_slices == 0:
     display_slices(num_slices)
     num_slices = get_input(completion_message='Finished displaying slices.')
 
-'Prepare datasets for training'
-# Repeat and batch dataset with prefetch. Note this is done after the
-# creation of daughter datasets and inspection since making the dataset
-# infinite (repeating) and separating into batches changes the nature of each
-# element. The '?'s in shapes indicate that the batch dimension is not
-# constant.
-BATCH_SIZE = 32  # no reason to choose this number?
-ds = ds.repeat()
-ds = ds.batch(BATCH_SIZE)  # Changes shapes to ((?, 410), (?, ))
-ds = ds.prefetch(buffer_size=AUTOTUNE)
+
+def serialize_components(slice, label):
+    """Function to be mapped to dataset. Returns a scalar tf.Tensor of type
+       String for the slice component and does not change the label
+       component.
+    """
+    return (tf.io.serialize_tensor(slice), label)
 
 
-def save_object(dataset, new_file_name):
-    with open(new_file_name, mode='wb') as open_file:
-        pickle.dump(dataset, open_file)
+def bytes_feature(value):
+    """Returns a tf.train.BytesList type from a string (serialized slice) to
+    adhere to tf.Example message {string: tf.train.Feature} mapping.
+    """
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+
+def int64_feature(value):
+    """Returns a tf.train.Int64List typr from an int32 type (label)."""
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+
+def serialize_to_example_numpy(slice, label):
+    """Main function for converting each element of the dataset into
+       tf.Example-compatible data types for the dataset. Then make a
+       tf.Example message and serialize it for storage.
+    """
+    # Make preliminary dictionary.
+    features_dict = {
+                     'slice': float_feature(slice.numpy()),
+                     'label': int64_feature(label.numpy())
+                    }
+    # Create the actual tf.Example message message type (protobuf) using
+    # tf.train.Example.
+    example_message = tf.train.Example(features=tf.train.Feature(
+        feature=features_dict))
+    return example_message.serializeToString()
+
+
+def serialize_to_example_tf(slice, label):
+    """To map the serialize_to_example_numpy function to the datasets, it must be
+       able to operate in tensorflow graph mode, ie. using tf.Tensors. This
+       function uses tf.Tensors so it can be mapped to a dataset, and it also
+       calls serialize_to_example_numpy using tf.py_function, which converts the
+       tf.Tensors to arrays so it can function.
+    """
+    tf_example = tf.py_function(
+                                serialize_to_example_numpy,  # function
+                                (slice, label),  # inputs
+                                tf.string  # return type
+                                )
+    return tf.reshape(tf_example, ())  # make result a scalar
 
 
 'Save dataset to be used in training'
-# Save the datasets as a dictionary object to the local directory to be used
-# later in training.
-datasets = {'complete_dataset': ds, 'training_dataset': ds_train,
-            'validation_dataset': ds_val, 'testing_dataset': ds_test
-            }
-save_object(datasets, 'Datasets')
-# !use tf_records instead!?
+# The slice components of the dataset must be converted to a scalar tf.Tensor
+# using tf.serialize_tensor in serialize_components. The dataset is then saved
+# to file.
+ds_serialized = ds.map(serialize_components)  # slices are now strings
+ds_serialized = ds_serialized.map(serialize_to_example_tf)
+filename = 'dataset.tfrecord'
+writer = tf.data.experimental.TFRecordWriter(filename)
+writer.write(ds_serialized)

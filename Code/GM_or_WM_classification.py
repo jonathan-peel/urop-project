@@ -14,6 +14,9 @@ from tensorflow.keras import layers
 
 tf.compat.v1.enable_eager_execution()  # lets tensorflow behave like python
 
+'Read TR'
+
+
 # inactive code below
 
 all_image_paths = list(basepath.glob('[WM only,GM only]/*/*.bmp'))
