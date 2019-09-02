@@ -82,34 +82,6 @@ label_dataset = tf.data.Dataset.from_tensor_slices(label_list)
 ds = tf.data.Dataset.zip((slice_dataset, label_dataset))
 ds = ds.shuffle(buffer_size=TOTAL_NUMBER)
 
-# Separate dataset into training, validation and testing. (DO LATER)
-# TRAIN_NUMBER = int(round(0.7 * TOTAL_NUMBER))
-# VAL_NUMBER = int(round(0.2 * TOTAL_NUMBER))
-# TEST_NUMBER = int(round(0.1 * TOTAL_NUMBER))
-# assert TRAIN_NUMBER + VAL_NUMBER + TEST_NUMBER == TOTAL_NUMBER,\
-#        'Rounding error when splitting dataset.'
-
-# ds_train = ds.take(TRAIN_NUMBER)
-# ds_temp = ds.skip(TRAIN_NUMBER)
-# ds_test = ds_temp.skip(VAL_NUMBER)
-# ds_val = ds_temp.take(VAL_NUMBER)
-# del ds_temp
-
-
-'Prepare datasets for training'  # maybe do this step after caching datasets
-# Repeat and batch dataset with prefetch. Note this is done after the
-# creation of daughter datasets and inspection since making the dataset
-# infinite (repeating) and separating into batches changes the nature of each
-# element. The '?'s in shapes indicate that the batch dimension is not
-# constant.
-# BATCH_SIZE = 32  # no reason to choose this number?
-# ds_train = ds_train.shuffle(TRAIN_NUMBER).batch(BATCH_SIZE)\
-#            .prefetch(AUTOTUNE)  # ?What is AUTOTUNE?, ?Should I repeat?
-# ds_val = ds_val.batch(BATCH_SIZE).prefetch(AUTOTUNE)
-# ds = ds.repeat()
-# ds = ds.batch(BATCH_SIZE)  # Changes shapes to ((?, 410), (?, ))
-# ds = ds.prefetch(buffer_size=AUTOTUNE)
-
 
 def display_slices(num_slices):
     """Plot a random sample of num_slices on the same axes. Note how ds.skip
