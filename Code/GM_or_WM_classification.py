@@ -10,15 +10,16 @@ from pathlib import Path
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
+import inspect
 
 'Load dataset'
 # Load the dataset from the TFRecord file.
-filename = 'WM-and-GM-dataset.tfrecord'
-ds_cache = tf.data.TFRecordDataset(filename)
+filename = 'Code\\WM-and-GM-dataset.tfrecord'
+ds_cached = tf.data.TFRecordDataset(filename)
 # Describe the nature of the dataset elements.
 feature_description = {
-    'slice': tf.io.FixedLenFeature([], tf.string, default_value=''),
-    'label': tf.io.FixedLenFeature([], tf.int64, default_value=0),
+    'slice': tf.io.FixedLenFeature([], tf.string, default_value='fail'),
+    'label': tf.io.FixedLenFeature([], tf.int64, default_value=69),
 }
 
 
@@ -27,7 +28,24 @@ def parse_function(example_message):
     return tf.io.parse_single_example(example_message, feature_description)
 
 
-ds = ds_cache.map(parse_function)
+def parse_slices(element):
+    """Function to be mapped to ds_serialised_slices. Returns the fully
+       parsed array version of the slices.
+    """
+    return (tf.io.parse_tensor(element['slice'], tf.float32), element['label'])
+
+
+ds_serialized_slices = ds_cached.map(parse_function)
+ds = ds_serialized_slices.map(parse_slices)
+
+'Inspect dataset'
+# Give the user the option of viewing slices from the dataset.
+num_slices = inspect.get_input(
+    completion_message='Dataset of slices is complete.')
+while not num_slices == 0:
+    inspect.display_slices(num_slices)
+    num_slices = inspect.get_input(
+        completion_message='Finished displaying slices.')
 
 'Prepare datasets'
 # Separate dataset into training, validation and testing.

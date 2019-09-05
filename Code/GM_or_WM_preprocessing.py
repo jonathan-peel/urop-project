@@ -11,6 +11,8 @@ import random
 from pathlib import Path
 import numpy as np
 import tensorflow as tf
+from inspect import get_input
+from inspect import display_slices
 
 'Preprocess images'
 # Define the base directory of all the images and convert it into a
@@ -80,58 +82,17 @@ ds = tf.data.Dataset.zip((slice_dataset, label_dataset))
 ds = ds.shuffle(buffer_size=TOTAL_NUMBER)
 
 
-def display_slices(num_slices):
-    """Plot a random sample of num_slices on the same axes. Note how ds.skip
-       is used with np.random.randint to choose a sample from a random section
-       of the database.
-    """
-    fig = plt.figure()
-    ax = plt.axes()
-    skip_num = np.random.randint(TOTAL_NUMBER-num_slices)
-
-    for counter, (slice_, label_index) in \
-            enumerate(ds.skip(skip_num).take(num_slices)):
-        slice_label = str(counter+1) + ': ' + label_names[label_index]
-
-        if label_index.numpy() == 0:  # 0 = WM
-            color = 'b'
-        elif label_index.numpy() == 1:
-            color = 'g'
-
-        line = plt.plot(np.linspace(0, 600, len(list(slice_))), slice_,
-                        label=slice_label, color=color
-                        )  # ?Are all the images 600?
-
-    plt.xlabel('Frequency (Hz)')  # ?Is it Hz?
-    plt.ylabel('Intensity')
-    plt.title('Sample of ' + str(num_slices) + ' slice(s) from dataset')
-    plt.legend()
-
-    plt.show()
-
-
-def get_input(completion_message):
-    num_slices = input(completion_message + ' How many slices would \
-you like to view? (Type 0 to skip): ')
-    while True:
-        try:
-            num_slices = int(num_slices)
-        except ValueError:
-            num_slices = input('Invalid entry. \
-Please input a positive integer: ')
-        else:
-            return num_slices
-
-
 'Inspect dataset'
 # Give the user the option of viewing x slices from the dataset.
-num_slices = get_input(completion_message='Dataset of slices is complete.')
+num_slices = get_input(
+    completion_message='Dataset of slices is complete.')
 while not num_slices == 0:
-    display_slices(num_slices)
-    num_slices = get_input(completion_message='Finished displaying slices.')
+    display_slices(num_slices, ds)
+    num_slices = get_input(
+        completion_message='Finished displaying slices.')
 
 
-def serialize_components(slice_, label):
+def serialize_slices(slice_, label):
     """Function to be mapped to dataset. Returns a scalar tf.Tensor of type
        String for the slice component and does not change the label
        component.
@@ -158,8 +119,8 @@ def serialize_to_example_numpy(slice_, label):
     """
     # Make features dictionary.
     feature = {
-               'feature0': bytes_feature(slice_.numpy()),
-               'feature1': int64_feature(label.numpy()),
+               'slice': bytes_feature(slice_.numpy()),
+               'label': int64_feature(label.numpy()),
                }
     # Create the actual tf.Example message message type (protobuf) using
     # tf.train.Example.
@@ -187,9 +148,9 @@ def serialize_to_example_tf(slice_, label):
 # The slice components of the dataset must be converted to a scalar tf.Tensor
 # using tf.serialize_tensor in serialize_components. The dataset is then saved
 # to file.
-ds_serialized = ds.map(serialize_components)  # slices are now strings
-ds_cache = ds_serialized.map(serialize_to_example_tf)
+ds_serialized_slices = ds.map(serialize_slices)  # slices are now strings
+ds_cached = ds_serialized_slices.map(serialize_to_example_tf)
 filename = 'C:\\Users\\JayPee\\OneDrive - Imperial College London\\UROP\\\
 Code\\WM-and-GM-dataset.tfrecord'
 writer = tf.data.experimental.TFRecordWriter(filename)
-writer.write(ds_cache)  # produces an EMPTY file!!
+writer.write(ds_cached)
