@@ -11,14 +11,23 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 
-tf.compat.v1.enable_eager_execution()  # lets tensorflow behave like python
-
-'Read dataset'
+'Load dataset'
 # Load the dataset from the TFRecord file.
+filename = 'WM-and-GM-dataset.tfrecord'
+ds_cache = tf.data.TFRecordDataset(filename)
+# Describe the nature of the dataset elements.
 feature_description = {
-    'slice': tf.FixedLenFeature((410,), tf.float32, default_value=None),
-    'label': tf.FixedLenFeature((), tf.int32, default_value=None)
+    'slice': tf.io.FixedLenFeature([], tf.string, default_value=''),
+    'label': tf.io.FixedLenFeature([], tf.int64, default_value=0),
 }
+
+
+def parse_function(example_message):
+    # Parse the input tf.Example proto using the feature_description dict.
+    return tf.io.parse_single_example(example_message, feature_description)
+
+
+ds = ds_cache.map(parse_function)
 
 'Prepare datasets'
 # Separate dataset into training, validation and testing.

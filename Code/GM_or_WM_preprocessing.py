@@ -11,9 +11,6 @@ import random
 from pathlib import Path
 import numpy as np
 import tensorflow as tf
-import pickle
-
-tf.compat.v1.enable_eager_execution()  # lets tensorflow behave like python
 
 'Preprocess images'
 # Define the base directory of all the images and convert it into a
@@ -92,7 +89,7 @@ def display_slices(num_slices):
     ax = plt.axes()
     skip_num = np.random.randint(TOTAL_NUMBER-num_slices)
 
-    for counter, (slice, label_index) in \
+    for counter, (slice_, label_index) in \
             enumerate(ds.skip(skip_num).take(num_slices)):
         slice_label = str(counter+1) + ': ' + label_names[label_index]
 
@@ -101,7 +98,7 @@ def display_slices(num_slices):
         elif label_index.numpy() == 1:
             color = 'g'
 
-        line = plt.plot(np.linspace(0, 600, len(list(slice))), slice,
+        line = plt.plot(np.linspace(0, 600, len(list(slice_))), slice_,
                         label=slice_label, color=color
                         )  # ?Are all the images 600?
 
@@ -114,7 +111,7 @@ def display_slices(num_slices):
 
 
 def get_input(completion_message):
-    num_slices = input(completion_message + ' How many slices would\
+    num_slices = input(completion_message + ' How many slices would \
 you like to view? (Type 0 to skip): ')
     while True:
         try:
@@ -134,12 +131,12 @@ while not num_slices == 0:
     num_slices = get_input(completion_message='Finished displaying slices.')
 
 
-def serialize_components(slice, label):
+def serialize_components(slice_, label):
     """Function to be mapped to dataset. Returns a scalar tf.Tensor of type
        String for the slice component and does not change the label
        component.
     """
-    return (tf.io.serialize_tensor(slice), label)
+    return (tf.io.serialize_tensor(slice_), label)
 
 
 def bytes_feature(value):
@@ -150,37 +147,37 @@ def bytes_feature(value):
 
 
 def int64_feature(value):
-    """Returns a tf.train.Int64List typr from an int32 type (label)."""
+    """Returns a tf.train.Int64List type from an int32 type (label)."""
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
 
-def serialize_to_example_numpy(slice, label):
+def serialize_to_example_numpy(slice_, label):
     """Main function for converting each element of the dataset into
        tf.Example-compatible data types for the dataset. Then make a
        tf.Example message and serialize it for storage.
     """
-    # Make preliminary dictionary.
-    features_dict = {
-                     'slice': float_feature(slice.numpy()),
-                     'label': int64_feature(label.numpy())
-                    }
+    # Make features dictionary.
+    feature = {
+               'feature0': bytes_feature(slice_.numpy()),
+               'feature1': int64_feature(label.numpy()),
+               }
     # Create the actual tf.Example message message type (protobuf) using
     # tf.train.Example.
-    example_message = tf.train.Example(features=tf.train.Feature(
-        feature=features_dict))
-    return example_message.serializeToString()
+    example_proto = tf.train.Example(features=tf.train.Features(
+        feature=feature))
+    return example_proto.SerializeToString()
 
 
-def serialize_to_example_tf(slice, label):
+def serialize_to_example_tf(slice_, label):
     """To map the serialize_to_example_numpy function to the datasets, it must be
        able to operate in tensorflow graph mode, ie. using tf.Tensors. This
        function uses tf.Tensors so it can be mapped to a dataset, and it also
-       calls serialize_to_example_numpy using tf.py_function, which converts the
-       tf.Tensors to arrays so it can function.
+       calls serialize_to_example_numpy using tf.py_function, which converts
+       the tf.Tensors to arrays so it can function.
     """
     tf_example = tf.py_function(
                                 serialize_to_example_numpy,  # function
-                                (slice, label),  # inputs
+                                (slice_, label),  # inputs
                                 tf.string  # return type
                                 )
     return tf.reshape(tf_example, ())  # make result a scalar
@@ -191,7 +188,8 @@ def serialize_to_example_tf(slice, label):
 # using tf.serialize_tensor in serialize_components. The dataset is then saved
 # to file.
 ds_serialized = ds.map(serialize_components)  # slices are now strings
-ds_serialized = ds_serialized.map(serialize_to_example_tf)
-filename = 'dataset.tfrecord'
+ds_cache = ds_serialized.map(serialize_to_example_tf)
+filename = 'C:\\Users\\JayPee\\OneDrive - Imperial College London\\UROP\\\
+Code\\WM-and-GM-dataset.tfrecord'
 writer = tf.data.experimental.TFRecordWriter(filename)
-writer.write(ds_serialized)
+writer.write(ds_cache)  # produces an EMPTY file!!
