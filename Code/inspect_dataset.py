@@ -1,7 +1,10 @@
-"""This is a module which holds the functions necessary to inspect a dataset
+"""This module holds the functions necessary to inspect a dataset.
 """
 
 from matplotlib import pyplot as plt
+import numpy as np
+
+label_names = ['WM only', 'GM only']
 
 
 def get_input(completion_message):
@@ -23,6 +26,7 @@ def display_slices(num_slices, dataset):
        is used with np.random.randint to choose a sample from a random section
        of the database.
     """
+    TOTAL_NUMBER = len(list(dataset))
     fig = plt.figure()
     ax = plt.axes()
     skip_num = np.random.randint(TOTAL_NUMBER-num_slices)

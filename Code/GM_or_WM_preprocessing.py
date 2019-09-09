@@ -11,8 +11,7 @@ import random
 from pathlib import Path
 import numpy as np
 import tensorflow as tf
-from inspect import get_input
-from inspect import display_slices
+import inspect_dataset
 
 'Preprocess images'
 # Define the base directory of all the images and convert it into a
@@ -67,7 +66,7 @@ def normalize(dataset_element):
     return dataset_element / 255
 
 
-'Make datasets'
+'Make dataset'
 # Make a list of 1D slices (as an nd array) then a list of corresponding
 # labels. Convert these lists into datasets and zip then shuffle them ready
 # for training. Note: slices have to be normalized after dataset is created
@@ -84,11 +83,11 @@ ds = ds.shuffle(buffer_size=TOTAL_NUMBER)
 
 'Inspect dataset'
 # Give the user the option of viewing x slices from the dataset.
-num_slices = get_input(
+num_slices = inspect_dataset.get_input(
     completion_message='Dataset of slices is complete.')
 while not num_slices == 0:
-    display_slices(num_slices, ds)
-    num_slices = get_input(
+    inspect_dataset.display_slices(num_slices, ds)
+    num_slices = inspect_dataset.get_input(
         completion_message='Finished displaying slices.')
 
 
@@ -153,4 +152,13 @@ ds_cached = ds_serialized_slices.map(serialize_to_example_tf)
 filename = 'C:\\Users\\JayPee\\OneDrive - Imperial College London\\UROP\\\
 Code\\WM-and-GM-dataset.tfrecord'
 writer = tf.data.experimental.TFRecordWriter(filename)
-writer.write(ds_cached)
+
+user_input = input('Dataset serialized. Would you like to cache it now? \
+enter \'y\' (yes) or \'n\' (no): ')
+while not user_input == 'y' or user_input == 'n':
+    if user_input == 'y':
+        writer.write(ds_cached)
+    elif user_input == 'n':
+        pass
+    else:
+        user_input = input('Please enter \'y\' (yes) or \'n\' (no): ')
