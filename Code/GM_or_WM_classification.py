@@ -9,6 +9,7 @@ import random
 from pathlib import Path
 import numpy as np
 import tensorflow as tf
+from tensorflow import keras
 from tensorflow.keras import layers
 import inspect_dataset
 
@@ -90,26 +91,40 @@ ds_test = ds_test.batch(1)  # ds_test now has same shape as other datasets
 
 'Build model'
 # Start simple with just a couple of dense layers.
-model = tf.keras.models.Sequential([
+model = keras.models.Sequential([
     layers.Dense(128, activation='relu', batch_input_shape=(None, 410)),
-    layers.Dense(2, activation='softmax')]
-)
-# Compile with normal optimizer and loss
+    layers.Dense(2, activation='softmax')
+])
+# Compile with normal opt5imizer and loss
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
 model.summary()
 
+'Define callbacks'
+# Enable analysis on tensorboard
+tensorboard_cbk = \
+    keras.callbacks.TensorBoard(histogram_freq=1, write_images=True,
+                                update_freq='batch', embeddings_freq=1)
+PATIENCE = 5
+early_stop_cbk = \
+    keras.callbacks.EarlyStopping(monitor='val_accuracy', min_delta=0.0001,
+                                  patience=5, restore_best_weights=True)
+callbacks = [tensorboard_cbk, early_stop_cbk]
+
 'Train model'
-EPOCHS = 10
-steps = int(np.ceil(TRAIN_NUMBER/float(BATCH_SIZE)))
-history = model.fit(ds_train, epochs=EPOCHS, validation_data=ds_val)
+EPOCHS = 50  # number of epochs likely lower due to early stopping
+history = model.fit(ds_train, epochs=EPOCHS, validation_data=ds_val,
+                    callbacks=callbacks)
 
 'Analyse training history'
 acc = history.history['accuracy']
 val_acc = history.history['val_accuracy']
 loss = history.history['loss']
 val_loss = history.history['val_loss']
-epochs_range = range(EPOCHS)
+num_epochs = len(acc)
+epochs_range = range(num_epochs)
+print('\nTraining finished in {} epochs as increase in validation accuracy \
+not recorded for {} epochs.\n'.format(num_epochs, PATIENCE))
 
 plt.figure(figsize=(8, 8))
 plt.subplot(1, 2, 1)
@@ -131,7 +146,7 @@ plt.show()
 # Doesn't work
 results = model.evaluate(ds_test)
 success_rate = round(results[1], 3)
-print('\nFinal test accuracy: {:.0%}'.format(success_rate))
+print('\nFinal test accuracy: {:.1%}\n'.format(success_rate))
 
 'Generate predictions'
 # 0 is white matter, 1 is grey matter.
