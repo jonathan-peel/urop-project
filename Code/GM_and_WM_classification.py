@@ -1,7 +1,7 @@
-"""This program preprocesses all the 'WM only' and 'GM only' Needle OCT_lan
-   BMP images into a large labelled dataset, where each element is a 1D
-   vertical slice of the images. A neural network is then trained and tested
-   using this data.
+"""This program preprocesses all the 'WM only' (white matter) and 'GM only'
+   (grey matter) Needle OCT_lan BMP images into a large labelled dataset, where
+   each element is a 1D vertical slice of the images. A neural network is then
+   trained and tested using this data.
 """
 
 from matplotlib.image import imread
@@ -56,9 +56,9 @@ def make_label_list():
     label_list = []
     for counter in range(TOTAL_IMAGES):
         if counter < WM_IMAGES:
-            label_list.append(label_name_to_index['WM only'])
+            label_list.append(0)  # 0: white matter
         elif counter <= TOTAL_IMAGES:
-            label_list.append(label_name_to_index['GM only'])
+            label_list.append(1)  # 1: grey matter
     return label_list
 
 
@@ -116,7 +116,7 @@ SLICES_PER_IMAGE = int(len(train_labels) / len(train_images))  # 767
 TRAIN_SLICES = len(train_labels)  # 662,688
 VAL_SLICES = len(val_labels)  # 189,449
 TEST_SLICES = len(test_labels)  # 98,108
-print('\nSplit each image within each list into {} 1D slices.'
+print('\nFinished splitting each image within each list into {} 1D slices.'
       .format(SLICES_PER_IMAGE))
 # Note the slices are now normalised
 
@@ -134,10 +134,10 @@ test_ds = Dataset.zip((test_slices_ds, test_labels_ds))
 print('\nCompleted datasets of labelled slices.')
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 train_ds = train_ds.shuffle(TRAIN_SLICES).batch(BATCH_SIZE).prefetch(AUTOTUNE)
 val_ds = val_ds.shuffle(VAL_SLICES).batch(BATCH_SIZE).prefetch(AUTOTUNE)
-test_ds = test_ds.batch(1)  # ds_test now has same shape as other datasets
+test_ds = test_ds.batch(BATCH_SIZE)  # ds_test now has same shape as others
 print('\nFinished batching and shuffling datasets.')
 
 'Build model'
@@ -160,16 +160,16 @@ PATIENCE = 2
 early_stop_cbk = \
     keras.callbacks.EarlyStopping(monitor='val_accuracy', min_delta=0.0001,
                                   patience=PATIENCE, restore_best_weights=True)
-callbacks = [early_stop_cbk]  # = [tensorboard_cbk, early_stop_cbk]
-# print('\nAnalysis on tensorboard enabled. After running, \
-# type \'tensorboard --logdir log\' from the command line to activate.\n')
+callbacks = [tensorboard_cbk, early_stop_cbk]
+print('\nAnalysis on tensorboard enabled. After running, \
+type \'tensorboard --logdir log\' from the command line to activate.\n')
 
 'Train model'
-EPOCHS = 1
+EPOCHS = 2
 BATCH_NUM = TRAIN_SLICES / BATCH_SIZE
-print('Training {} batches over {} epoch(s)\n'.format(BATCH_NUM, EPOCHS))
-history = model.fit(train_ds, epochs=EPOCHS, validation_data=val_ds,)
-#                    callbacks=callbacks)
+print('Training {} batches over {} epoch(s) ...\n'.format(BATCH_NUM, EPOCHS))
+history = model.fit(train_ds, epochs=EPOCHS, validation_data=val_ds,
+                    callbacks=callbacks)
 
 'Analyse training history'
 acc = history.history['accuracy']
@@ -197,6 +197,7 @@ plt.title('Training and validation loss')
 plt.show()
 
 'Test model performance on unseen data'
+print('\nTesting model on unseen data.')
 results = model.evaluate(test_ds)
 success_rate = round(results[1], 3)
 print('\nFinal test accuracy: {:.1%}\n'.format(success_rate))
@@ -204,14 +205,18 @@ print('\nFinal test accuracy: {:.1%}\n'.format(success_rate))
 'Generate predictions'
 # 0 is white matter, 1 is grey matter.
 rand_int = random.randint(0, TEST_IMAGES-1)
-rand_element = next(iter(ds_test.skip(rand_int).take(1)))
+rand_element = next(iter(test_ds.skip(rand_int).take(1)))
 actual_class = label_names[rand_element[1][0].numpy()]
+time_start = time.time()
 predictions = model.predict(rand_element)[0]
+time_end = time.time()
 x_pos = np.arange(len(predictions))
 plt.bar(x_pos, predictions)
 plt.xticks(x_pos, labels=label_names)
 plt.xlabel('Classes')
 plt.ylabel('Probability')
 plt.title('Class prediction for a {} scan'.format(actual_class))
+plt.caption
+print('\nPrediction generated in {} seconds.'.format(time_end-time_start))
 plt.show()
 pass
