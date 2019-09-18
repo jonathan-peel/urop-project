@@ -16,6 +16,7 @@ from tensorflow.data import Dataset
 from tensorflow import keras
 from tensorflow.keras import layers
 import inspect_dataset
+import shutil
 import time
 
 print('\nFinished importing libraries.')
@@ -25,7 +26,8 @@ print('\nFinished importing libraries.')
 # pathlib.WindowsPath object. Then collect all the WM image paths into a
 # list of of WindowsPath objects and convert these to strings. WM slices have
 # an index of 0, GM slices have an index of 1 and slices with both GM and WM
-# (referred to as 'GMWM') have an index of 2.
+# (referred to as 'GMWM') have an index of 2. The class_weights dictionary
+# accounts for the imbalence in number of data samples of each class.
 basepath = Path.cwd() / 'Needle OCT_Ian'
 WM_paths = list(basepath.glob('WM only/**/*.bmp'))
 GM_paths = list(basepath.glob('GM only/**/*.bmp'))
@@ -42,17 +44,25 @@ WM_IMAGES = len(WM_paths)
 GM_IMAGES = len(GM_paths)
 GMWM_IMAGES = len(GMWM_paths)
 TOTAL_IMAGES = len(all_paths)
+MAX_CLASS = max(WM_IMAGES, GM_IMAGES, GMWM_IMAGES)
+class_weights = {
+                 0: MAX_CLASS/WM_IMAGES,
+                 1: MAX_CLASS/GM_IMAGES,
+                 2: MAX_CLASS/GMWM_IMAGES,
+                 }
 print('\nCollected {} OCT scan image paths consisting of {} Grey Matter, {} \
 White Matter and {} Grey and White Matter images.'
       .format(TOTAL_IMAGES, GM_IMAGES, WM_IMAGES, GMWM_IMAGES))
 
 
 def make_image_array_list(all_paths):
-    """Load the images into numpy arrays."""
+    """Load the images into numpy arrays. Note that only half of the image is
+       cropped into an array to allow model fitting to stay within memory.
+    """
     image_array_list = []
     for counter, image_path in enumerate(all_paths):
         image = Image.open(image_path)
-        image_cropped = image.crop((60, 44, 827, 454))
+        image_cropped = image.crop((60, 44, 444, 454))
         image_array_list.append(np.asarray(image_cropped))
         image_array_list[counter] = image_array_list[counter].transpose()
     return image_array_list
@@ -123,10 +133,10 @@ print('\nSeparated image list into training, validation and testing.')
 train_slices, train_labels = image_list_to_slice_list(train_images)
 val_slices, val_labels = image_list_to_slice_list(val_images)
 test_slices, test_labels = image_list_to_slice_list(test_images)
-SLICES_PER_IMAGE = int(len(train_labels) / len(train_images))  # 767
-TRAIN_SLICES = len(train_labels)  # 662,688
-VAL_SLICES = len(val_labels)  # 189,449
-TEST_SLICES = len(test_labels)  # 98,108
+SLICES_PER_IMAGE = int(len(train_labels) / len(train_images))
+TRAIN_SLICES = len(train_labels)
+VAL_SLICES = len(val_labels)
+TEST_SLICES = len(test_labels)
 print('\nFinished splitting each image within each list into {} 1D slices.'
       .format(SLICES_PER_IMAGE))
 # Note the slices are now normalised
@@ -145,16 +155,15 @@ test_ds = Dataset.zip((test_slices_ds, test_labels_ds))
 print('\nCompleted datasets of labelled slices.')
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
-BATCH_SIZE = 256
+BATCH_SIZE = 128
 train_ds = train_ds.shuffle(TRAIN_SLICES).batch(BATCH_SIZE).prefetch(AUTOTUNE)
 val_ds = val_ds.shuffle(VAL_SLICES).batch(BATCH_SIZE).prefetch(AUTOTUNE)
 test_ds = test_ds.batch(BATCH_SIZE)  # ds_test now has same shape as others
 print('\nFinished batching and shuffling datasets.')
 
 'Build model'
-# Start simple with just a single dense layer.
 model = keras.models.Sequential([
-    layers.Dense(128, activation='relu', batch_input_shape=(None, 410)),
+    layers.Dense(256, activation='relu', batch_input_shape=(None, 410)),
     layers.Dense(3, activation='softmax')
 ])
 # Compile with normal optimizer and loss
@@ -165,22 +174,25 @@ model.summary()
 
 'Define callbacks'
 tensorboard_cbk = \
-    keras.callbacks.TensorBoard(histogram_freq=1, write_images=True,
-                                embeddings_freq=1)  # too much detail?
-PATIENCE = 2
+    keras.callbacks.TensorBoard(log_dir='TensorBoard logs', histogram_freq=1,
+                                write_images=True, embeddings_freq=1)
+PATIENCE = 1
 early_stop_cbk = \
     keras.callbacks.EarlyStopping(monitor='val_accuracy', min_delta=0.0001,
                                   patience=PATIENCE, restore_best_weights=True)
 callbacks = [tensorboard_cbk, early_stop_cbk]
 print('\nAnalysis on tensorboard enabled. After running, \
 type \'tensorboard --logdir log\' from the command line to activate.\n')
+# delete previous TensorBoard logs
+shutil.rmtree('TensorBoard logs', ignore_errors=True)
+
 
 'Train model'
-EPOCHS = 2
+EPOCHS = 10
 BATCH_NUM = TRAIN_SLICES / BATCH_SIZE
 print('Training {} batches over {} epoch(s) ...\n'.format(BATCH_NUM, EPOCHS))
 history = model.fit(train_ds, epochs=EPOCHS, validation_data=val_ds,
-                    callbacks=callbacks)
+                    callbacks=callbacks, class_weight=class_weights)
 
 'Analyse training history'
 acc = history.history['accuracy']
@@ -227,7 +239,6 @@ plt.xticks(x_pos, labels=label_names)
 plt.xlabel('Classes')
 plt.ylabel('Probability')
 plt.title('Class prediction for a {} scan'.format(actual_class))
-plt.caption
 print('\nPrediction generated in {} seconds.'.format(time_end-time_start))
 plt.show()
 pass
