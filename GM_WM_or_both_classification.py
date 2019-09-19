@@ -155,17 +155,56 @@ test_ds = Dataset.zip((test_slices_ds, test_labels_ds))
 print('\nCompleted datasets of labelled slices.')
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 train_ds = train_ds.shuffle(TRAIN_SLICES).batch(BATCH_SIZE).prefetch(AUTOTUNE)
 val_ds = val_ds.shuffle(VAL_SLICES).batch(BATCH_SIZE).prefetch(AUTOTUNE)
-test_ds = test_ds.batch(BATCH_SIZE)  # ds_test now has same shape as others
+test_ds = test_ds.batch(BATCH_SIZE)
 print('\nFinished batching and shuffling datasets.')
 
-'Build model'
-model = keras.models.Sequential([
-    layers.Dense(256, activation='relu', batch_input_shape=(None, 410)),
-    layers.Dense(3, activation='softmax')
-])
+
+def build_CNN(train_ds, val_ds, test_ds):
+    """Function to build a convolutional neural network with 2 convolutions and
+       1 dense layer.
+    """
+    def add_dim(slice, label):
+        """To add a dimension to the tensors in each dataset for Conv1D layer.
+        """
+        slice = tf.expand_dims(slice, 1)
+        return (slice, label)
+
+    # Add dimension to each dataset for compatability with Conv1D layer
+    train_ds = train_ds.map(add_dim)
+    val_ds = val_ds.map(add_dim)
+    test_ds = test_ds.map(add_dim)
+
+    'Build model'
+    model = keras.models.Sequential([
+        layers.Conv1D(filters=16, kernel_size=1, padding='valid',
+                      activation='relu', input_shape=(1, 410)),
+        layers.MaxPooling1D(pool_size=1, strides=1),
+        layers.Conv1D(filters=32, kernel_size=1, padding='valid',
+                      activation='relu'),
+        layers.MaxPooling1D(pool_size=1, strides=1),
+        layers.Dropout(0.2),
+        layers.Flatten(),
+        layers.Dense(256, activation='relu'),
+        layers.Dense(3, activation='softmax'),
+    ])
+    return (model, train_ds, val_ds, test_ds)
+
+
+def build_NN():
+    model = keras.models.Sequential([
+        layers.Dense(256, activation='relu', batch_input_shape=(None, 410)),
+        layers.Dense(3, activation='softmax')
+    ])
+    return model
+
+
+# choose which model to build!
+# model, train_ds, val_ds, test_ds = build_CNN(train_ds, val_ds, test_ds)
+model = build_NN()
+
 # Compile with normal optimizer and loss
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
@@ -176,7 +215,7 @@ model.summary()
 tensorboard_cbk = \
     keras.callbacks.TensorBoard(log_dir='TensorBoard logs', histogram_freq=1,
                                 write_images=True, embeddings_freq=1)
-PATIENCE = 1
+PATIENCE = 2
 early_stop_cbk = \
     keras.callbacks.EarlyStopping(monitor='val_accuracy', min_delta=0.0001,
                                   patience=PATIENCE, restore_best_weights=True)
@@ -219,11 +258,13 @@ plt.legend(loc='upper right')
 plt.title('Training and validation loss')
 plt.show()
 
-'Test model performance on unseen data'
+'Test model performance on unseen data and save'
 print('\nTesting model on unseen data.')
 results = model.evaluate(test_ds)
 success_rate = round(results[1], 3)
 print('\nFinal test accuracy: {:.1%}\n'.format(success_rate))
+model_name = input('Please enter a name to save the model as: ')
+model.save('Saved models/{}.h5'.format(model_name))
 
 'Generate predictions'
 # 0 is white matter, 1 is grey matter, 2 is both.
@@ -233,12 +274,13 @@ actual_class = label_names[rand_element[1][0].numpy()]
 time_start = time.time()
 predictions = model.predict(rand_element)[0]
 time_end = time.time()
+time_elapsed = round(time_end-time_start, 3)
 x_pos = np.arange(len(predictions))
 plt.bar(x_pos, predictions)
 plt.xticks(x_pos, labels=label_names)
 plt.xlabel('Classes')
 plt.ylabel('Probability')
 plt.title('Class prediction for a {} scan'.format(actual_class))
-print('\nPrediction generated in {} seconds.'.format(time_end-time_start))
+print('\nPrediction generated in {} seconds.'.format(time_elapsed))
 plt.show()
 pass
